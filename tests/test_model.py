@@ -3,11 +3,10 @@ import pytest
 
 from lamodel import actuarial as act
 from lamodel import profit, reserves
-from lamodel.deferred_annuity import DIAAssumptions, DeferredIncomeAnnuity
+from lamodel.deferred_annuity import DeferredIncomeAnnuity, DIAAssumptions
 from lamodel.tables import cso_2017, iar_2012, read_xtbml, susm
 from lamodel.term_life import TermAssumptions, TermLife
 from lamodel.validation import ALTAM_SUSM_5PCT
-
 
 # --- tables -----------------------------------------------------------------
 

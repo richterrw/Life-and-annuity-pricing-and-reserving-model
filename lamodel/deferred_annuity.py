@@ -53,7 +53,7 @@ class DIAAssumptions:
     rc_reserve_factor: float = 0.04  # C-1 / C-3 style factor on reserves
     hurdle_rate: float = 0.10
 
-    def with_(self, **kw) -> "DIAAssumptions":
+    def with_(self, **kw) -> DIAAssumptions:
         return replace(self, **kw)
 
 
@@ -68,14 +68,17 @@ class DIAResult:
 class DeferredIncomeAnnuity:
     def __init__(self, a: DIAAssumptions, pricing_table: MortalityBasis | None = None):
         self.a = a
-        self.pricing_table = pricing_table or iar_2012(
-            a.sex, a.issue_year, a.improvement_multiplier
-        ).scaled(a.mortality_pct)
+        self.pricing_table = pricing_table or iar_2012(a.sex, a.issue_year, a.improvement_multiplier).scaled(
+            a.mortality_pct
+        )
         # statutory valuation table is always 100% 2012 IAR with full G2
         self.valuation_table = iar_2012(a.sex, a.issue_year)
 
-    def project(self, annual_income: float) -> DIAResult:
+    def project(self, annual_income: float, earned_rate=None) -> DIAResult:
+        """Project one contract.  ``earned_rate`` optionally overrides the flat
+        assumption with a year-by-year path (e.g. one interest scenario)."""
         a = self.a
+        i_earn = a.earned_rate if earned_rate is None else np.asarray(earned_rate)
         q = self.pricing_table.q(a.issue_age)
         n = len(q)
         t = np.arange(1, n + 1)
@@ -99,24 +102,21 @@ class DeferredIncomeAnnuity:
         premium = np.where(t == 1, a.premium, 0.0)
         commission = a.commission * premium
         infl = (1 + a.expense_inflation) ** (t - 1)
-        expenses = a.expense_multiplier * (
-            np.where(t == 1, a.acq_per_policy, 0.0) + a.maint_per_policy * infl
-        ) * inforce_bop
+        expenses = (
+            a.expense_multiplier * (np.where(t == 1, a.acq_per_policy, 0.0) + a.maint_per_policy * infl) * inforce_bop
+        )
         income = np.where(in_payout, annual_income, 0.0) * inforce_bop
         death_benefits = np.where(in_payout, 0.0, db) * deaths
 
-        inv_income = (reserve_bop + premium - commission - expenses - income) * a.earned_rate
-        pretax = (
-            premium + inv_income - commission - expenses - income - death_benefits
-            - (reserve_eop - reserve_bop)
-        )
+        inv_income = (reserve_bop + premium - commission - expenses - income) * i_earn
+        pretax = premium + inv_income - commission - expenses - income - death_benefits - (reserve_eop - reserve_bop)
         tax = a.tax_rate * pretax
         after_tax = pretax - tax
 
         rc_eop = a.rc_reserve_factor * reserve_eop
         rc_0 = a.rc_reserve_factor * initial_reserve
         rc_bop = np.concatenate([[rc_0], rc_eop[:-1]])
-        de = after_tax + rc_bop * a.earned_rate * (1 - a.tax_rate) - (rc_eop - rc_bop)
+        de = after_tax + rc_bop * i_earn * (1 - a.tax_rate) - (rc_eop - rc_bop)
 
         df = pd.DataFrame(
             {
@@ -160,6 +160,27 @@ class DeferredIncomeAnnuity:
             "life_expectancy_at_issue_valuation": float(np.sum(np.cumprod(1 - q_val))),
         }
         return DIAResult(a, annual_income, df, metrics)
+
+    def liability_cash_flows(self, annual_income: float, from_year: int = 0, mortality_margin: float = 0.0):
+        """Net liability outflows per contract in force at the end of ``from_year``.
+
+        Start of year: maintenance expenses and any income payment.  End of
+        year: return-of-premium death benefits during deferral.  A negative
+        ``mortality_margin`` (lighter mortality) is the prudent direction for
+        an annuity.
+        """
+        a = self.a
+        q = np.clip(self.pricing_table.q(a.issue_age)[from_year:] * (1 + mortality_margin), 0, 1)
+        q[-1] = 1.0
+        t = np.arange(1, len(self.pricing_table.q(a.issue_age)) + 1)[from_year:]
+        inforce = np.concatenate([[1.0], np.cumprod(1 - q)[:-1]])
+        infl = (1 + a.expense_inflation) ** (t - 1)
+        expenses = a.expense_multiplier * a.maint_per_policy * infl * inforce
+        income = np.where(t > a.deferral, annual_income, 0.0) * inforce
+        db = a.premium if a.return_of_premium else 0.0
+        bop = expenses + income
+        eop = np.where(t > a.deferral, 0.0, db) * inforce * q
+        return bop, eop
 
     def price(self) -> DIAResult:
         """Annual income per contract at which the DE IRR equals the hurdle rate."""

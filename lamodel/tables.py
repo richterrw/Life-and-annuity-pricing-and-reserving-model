@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +55,7 @@ def _text(node, path: str) -> str:
     return found.text.strip() if found is not None and found.text else ""
 
 
-@lru_cache(maxsize=None)
+@cache
 def read_xtbml(table_id: int, data_dir: Path = DATA_DIR) -> XTbMLTable:
     """Parse an SOA XTbML file into nested dicts.
 
@@ -73,14 +73,10 @@ def read_xtbml(table_id: int, data_dir: Path = DATA_DIR) -> XTbMLTable:
             values = {int(y.attrib["t"]): float(y.text) for y in outer[0].findall("Y")}
         else:
             values = {
-                int(ax.attrib["t"]): {
-                    int(y.attrib["t"]): float(y.text) for y in ax.find("Axis").findall("Y")
-                }
+                int(ax.attrib["t"]): {int(y.attrib["t"]): float(y.text) for y in ax.find("Axis").findall("Y")}
                 for ax in outer
             }
-        parsed.append(
-            {"description": _text(tbl, "MetaData/TableDescription"), "values": values}
-        )
+        parsed.append({"description": _text(tbl, "MetaData/TableDescription"), "values": values})
     return XTbMLTable(
         table_id=table_id,
         name=_text(cc, "TableName"),
@@ -103,7 +99,7 @@ class MortalityBasis:
     def q(self, issue_age: int, n_years: int | None = None) -> np.ndarray:
         raise NotImplementedError
 
-    def scaled(self, factor: float) -> "ScaledBasis":
+    def scaled(self, factor: float) -> ScaledBasis:
         return ScaledBasis(self, factor)
 
 
@@ -232,14 +228,10 @@ class ScaledBasis(MortalityBasis):
 
 def cso_2017(sex: str = "M", use_select: bool = True) -> SelectUltimateTable:
     """2017 Loaded CSO smoker-distinct nonsmoker, ANB, select & ultimate."""
-    return SelectUltimateTable(
-        CSO2017_NS_MALE if sex.upper() == "M" else CSO2017_NS_FEMALE, use_select
-    )
+    return SelectUltimateTable(CSO2017_NS_MALE if sex.upper() == "M" else CSO2017_NS_FEMALE, use_select)
 
 
-def iar_2012(
-    sex: str = "M", issue_year: int = 2026, improvement_multiplier: float = 1.0
-) -> GenerationalTable:
+def iar_2012(sex: str = "M", issue_year: int = 2026, improvement_multiplier: float = 1.0) -> GenerationalTable:
     """2012 IAR: 2012 IAM basic projected generationally with Scale G2."""
     male = sex.upper() == "M"
     return GenerationalTable(

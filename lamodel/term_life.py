@@ -67,7 +67,7 @@ class TermAssumptions:
     rc_reserve_factor: float = 0.02  # required capital per $ of reserve
     hurdle_rate: float = 0.10
 
-    def with_(self, **kw) -> "TermAssumptions":
+    def with_(self, **kw) -> TermAssumptions:
         return replace(self, **kw)
 
 
@@ -98,22 +98,32 @@ class TermLife:
         )
 
     # -- projection ----------------------------------------------------------
-    def project(self, gross_premium: float) -> TermResult:
+    def lapse_rates(self) -> np.ndarray:
+        w = np.minimum(np.asarray(self.a.lapse[: self.a.term]) * self.a.lapse_multiplier, 1.0)
+        w[-1] = 0.0  # contract expires at the end of the level period
+        return w
+
+    def decrements(self, q: np.ndarray, w: np.ndarray):
+        """Expected in-force, deaths and lapses per policy issued."""
+        n = self.a.term
+        inforce_bop = np.concatenate([[1.0], np.cumprod((1 - q) * (1 - w))[: n - 1]])
+        deaths = inforce_bop * q
+        lapses = inforce_bop * (1 - q) * w
+        return inforce_bop, deaths, lapses
+
+    def financials(self, gross_premium, inforce_bop, deaths, lapses, earned_rate=None) -> dict:
+        """Statutory financials from decrements.
+
+        Works on a single projection (shape ``(n,)``) or many at once (shape
+        ``(sims, n)``), e.g. stochastic mortality or interest scenarios.
+        ``earned_rate`` may be a scalar or a path broadcastable to that shape.
+        """
         a = self.a
         n = a.term
         t = np.arange(1, n + 1)
-        q = self.pricing_q()
-        w = np.minimum(np.asarray(a.lapse[:n]) * a.lapse_multiplier, 1.0)
-        w[-1] = 0.0  # contract expires at the end of the level period
-
-        inforce_bop = np.empty(n)
-        inforce_bop[0] = 1.0
-        for k in range(1, n):
-            inforce_bop[k] = inforce_bop[k - 1] * (1 - q[k - 1]) * (1 - w[k - 1])
-        deaths = inforce_bop * q
-        lapses = inforce_bop * (1 - q) * w
+        i_earn = a.earned_rate if earned_rate is None else np.asarray(earned_rate)
         inforce_eop = inforce_bop - deaths - lapses
-        inforce_eop[-1] = 0.0  # expiries
+        inforce_eop[..., -1] = 0.0  # expiries
 
         rf = self.reserve_factors(gross_premium)
         res_factor = rf.total * a.face
@@ -121,27 +131,70 @@ class TermLife:
         reserve_eop = res_factor[1:] * inforce_eop
 
         premium = gross_premium * inforce_bop
-        comm_rate = np.where(t == 1, a.commission_fy, np.where(t <= 10, a.commission_ren_2_10, a.commission_ren_11_plus))
+        comm_rate = np.where(
+            t == 1, a.commission_fy, np.where(t <= 10, a.commission_ren_2_10, a.commission_ren_11_plus)
+        )
         commission = comm_rate * premium
         prem_tax = a.premium_tax * premium
         infl = (1 + a.expense_inflation) ** (t - 1)
-        expenses = a.expense_multiplier * (
-            np.where(t == 1, a.acq_per_policy + a.acq_per_1000 * a.face / 1000, 0.0)
-            + a.maint_per_policy * infl
-        ) * inforce_bop
+        expenses = (
+            a.expense_multiplier
+            * (np.where(t == 1, a.acq_per_policy + a.acq_per_1000 * a.face / 1000, 0.0) + a.maint_per_policy * infl)
+            * inforce_bop
+        )
         claims = deaths * a.face
 
-        inv_income = (reserve_bop + premium - commission - prem_tax - expenses) * a.earned_rate
+        inv_income = (reserve_bop + premium - commission - prem_tax - expenses) * i_earn
         pretax = premium + inv_income - commission - prem_tax - expenses - claims - (reserve_eop - reserve_bop)
         tax = a.tax_rate * pretax
         after_tax = pretax - tax
 
         nar_eop = np.maximum(a.face * inforce_eop - reserve_eop, 0.0)
         rc_eop = a.rc_nar_factor * nar_eop + a.rc_reserve_factor * reserve_eop
-        rc_0 = a.rc_nar_factor * a.face
-        rc_bop = np.concatenate([[rc_0], rc_eop[:-1]])
-        int_on_rc = rc_bop * a.earned_rate * (1 - a.tax_rate)
+        rc_0 = a.rc_nar_factor * a.face * inforce_bop[..., :1]
+        rc_bop = np.concatenate([rc_0, rc_eop[..., :-1]], axis=-1)
+        int_on_rc = rc_bop * i_earn * (1 - a.tax_rate)
         de = after_tax + int_on_rc - (rc_eop - rc_bop)
+        return {
+            "t": t,
+            "rf": rf,
+            "inforce_bop": inforce_bop,
+            "deaths": deaths,
+            "lapses": lapses,
+            "inforce_eop": inforce_eop,
+            "premium": premium,
+            "commission": commission,
+            "premium_tax": prem_tax,
+            "expenses": expenses,
+            "death_claims": claims,
+            "investment_income": inv_income,
+            "reserve_bop": reserve_bop,
+            "reserve_eop": reserve_eop,
+            "pretax": pretax,
+            "tax": tax,
+            "after_tax": after_tax,
+            "rc_0": rc_0[..., 0],
+            "rc_eop": rc_eop,
+            "int_on_rc": int_on_rc,
+            "de": de,
+            "de_full": np.concatenate([-rc_0, de], axis=-1),
+        }
+
+    def project(self, gross_premium: float, earned_rate=None) -> TermResult:
+        a = self.a
+        q = self.pricing_q()
+        w = self.lapse_rates()
+        f = self.financials(gross_premium, *self.decrements(q, w), earned_rate=earned_rate)
+        t, rf = f["t"], f["rf"]
+        inforce_bop, deaths, lapses, inforce_eop = f["inforce_bop"], f["deaths"], f["lapses"], f["inforce_eop"]
+        premium, commission, prem_tax, expenses = f["premium"], f["commission"], f["premium_tax"], f["expenses"]
+        claims, inv_income, reserve_bop, reserve_eop = (
+            f["death_claims"],
+            f["investment_income"],
+            f["reserve_bop"],
+            f["reserve_eop"],
+        )
+        pretax, tax, after_tax, rc_eop, de = f["pretax"], f["tax"], f["after_tax"], f["rc_eop"], f["de"]
 
         df = pd.DataFrame(
             {
@@ -172,7 +225,7 @@ class TermLife:
                 "deficiency_factor_per_1000": rf.deficiency[1:] * 1000,
             }
         )
-        de_full = np.concatenate([[-rc_0], de])
+        de_full = f["de_full"]
         pv_prem = profit.npv(np.concatenate([premium, [0.0]]), a.hurdle_rate)
         pv_de = profit.npv(de_full, a.hurdle_rate)
         metrics = {
@@ -190,6 +243,35 @@ class TermLife:
             "deficiency_reserve": bool(rf.deficiency.any()),
         }
         return TermResult(a, gross_premium, df, rf, metrics)
+
+    def liability_cash_flows(
+        self, gross_premium: float, from_year: int = 0, mortality_margin: float = 0.0, lapse_multiplier: float = 1.0
+    ):
+        """Net liability outflows per policy in force at the end of ``from_year``.
+
+        Returns (start-of-year outflow, end-of-year outflow) for the remaining
+        policy years: commission + premium tax + expenses - premium at the
+        start, death claims at the end.  Margins give a prudent-estimate basis.
+        """
+        a = self.a
+        n = a.term
+        t = np.arange(1, n + 1)[from_year:]
+        q = np.clip(self.pricing_q()[from_year:] * (1 + mortality_margin), 0, 1)
+        w = np.minimum(self.lapse_rates()[from_year:] * lapse_multiplier, 1.0)
+        inforce = np.concatenate([[1.0], np.cumprod((1 - q) * (1 - w))[:-1]])
+        premium = gross_premium * inforce
+        comm_rate = np.where(
+            t == 1, a.commission_fy, np.where(t <= 10, a.commission_ren_2_10, a.commission_ren_11_plus)
+        )
+        infl = (1 + a.expense_inflation) ** (t - 1)
+        expenses = (
+            a.expense_multiplier
+            * (np.where(t == 1, a.acq_per_policy + a.acq_per_1000 * a.face / 1000, 0.0) + a.maint_per_policy * infl)
+            * inforce
+        )
+        bop = (comm_rate + a.premium_tax) * premium + expenses - premium
+        eop = inforce * q * a.face
+        return bop, eop
 
     # -- pricing -------------------------------------------------------------
     def price(self) -> TermResult:

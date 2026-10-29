@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .deferred_annuity import DIAAssumptions, DeferredIncomeAnnuity
+from .deferred_annuity import DeferredIncomeAnnuity, DIAAssumptions
 from .reserves import deferred_income_annuity_reserves
 from .tables import iar_2012
 from .term_life import TermAssumptions, TermLife
