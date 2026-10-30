@@ -3,3 +3,4 @@ __pycache__/
 .pytest_cache/
 notebooks/figures/
 *.egg-info/
+site/_build/

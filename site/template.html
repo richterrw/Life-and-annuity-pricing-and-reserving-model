@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Life &amp; Annuity Model | Robbie Richter</title>
+<meta name="description" content="A life and annuity pricing and reserving model by Robbie Richter: SOA 2017 CSO and 2012 IAR mortality, CRVM and CARVM statutory reserves, stochastic reserves and Monte Carlo mortality risk, validated against ALTAM.">
+<meta name="author" content="Robbie Richter">
+<meta property="og:title" content="Life & Annuity Pricing and Reserving Model | Robbie Richter">
+<meta property="og:description" content="Term life and deferred annuity priced on SOA tables, with statutory and stochastic reserves and risk analysis.">
+<meta property="og:image" content="assets/term_premium_buildup.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a5f'/><path d='M7 23 L13 15 L18 19 L25 9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-2: #f3f2ee;
+  --ink: #14171c;
+  --ink-2: #474a50;
+  --ink-3: #6e7076;
+  --line: #e4e3df;
+  --navy: #1f3a5f;
+  --accent: #2a78d6;
+  --accent-ink: #1d5fae;
+  --accent-soft: #e6effb;
+  --orange: #d9581f;
+  --good: #1a7f4e;
+  --shadow: 0 1px 2px rgba(20, 23, 28, .05), 0 4px 16px rgba(20, 23, 28, .05);
+  --radius: 14px;
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111317; --surface: #191c21; --surface-2: #20242a;
+    --ink: #eef0f3; --ink-2: #c3c6cc; --ink-3: #9a9ea6; --line: #2c3037;
+    --navy: #9fbde6; --accent: #5b9cec; --accent-ink: #8bb9f2; --accent-soft: #1d2a3b;
+    --orange: #f08a5d; --good: #4cc38a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111317; --surface: #191c21; --surface-2: #20242a;
+  --ink: #eef0f3; --ink-2: #c3c6cc; --ink-3: #9a9ea6; --line: #2c3037;
+  --navy: #9fbde6; --accent: #5b9cec; --accent-ink: #8bb9f2; --accent-soft: #1d2a3b;
+  --orange: #f08a5d; --good: #4cc38a;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; display: block; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { font-weight: 700; color: var(--ink); letter-spacing: -.01em; white-space: nowrap; }
+.brand span { color: var(--ink-3); font-weight: 500; }
+.navlinks { display: flex; gap: 20px; margin-left: auto; font-size: 14px; }
+.navlinks a { color: var(--ink-2); }
+.navlinks a:hover { color: var(--ink); text-decoration: none; }
+.theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; display: grid; place-items: center; }
+@media (max-width: 860px) { .navlinks { display: none; } .theme-btn { margin-left: auto; } }
+
+/* hero */
+header.hero { padding: 72px 0 40px; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 14px; }
+h1 { font-family: var(--serif); font-weight: 700; font-size: clamp(34px, 5.2vw, 56px); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 18px; max-width: 18ch; }
+.lede { font-size: 19px; color: var(--ink-2); max-width: 68ch; margin: 0 0 28px; }
+.byline { display: flex; align-items: center; gap: 12px; margin: 0 0 28px; color: var(--ink-2); font-size: 15px; }
+.avatar { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--navy); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.btn:hover { text-decoration: none; border-color: var(--ink-3); }
+.btn.primary { background: var(--navy); border-color: var(--navy); color: var(--bg); }
+.btn svg { width: 16px; height: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.chip { font-size: 12.5px; font-weight: 500; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.chip.ok { color: var(--good); }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 8px 0 0; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.stat .v { font-family: var(--serif); font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+.stat .l { font-size: 14px; color: var(--ink-2); margin-top: 6px; }
+.stat .s { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+@media (max-width: 860px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 420px) { .stats { grid-template-columns: 1fr; } }
+
+/* sections */
+section { padding: 64px 0 8px; }
+h2 { font-family: var(--serif); font-size: clamp(26px, 3.4vw, 34px); letter-spacing: -.015em; line-height: 1.2; margin: 0 0 10px; }
+.sub { color: var(--ink-2); max-width: 70ch; margin: 0 0 28px; }
+h3 { font-size: 17px; margin: 0 0 8px; letter-spacing: -.005em; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media (max-width: 860px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+.grid2 > *, .grid3 > *, .findings > *, .skills > *, .stats > * { min-width: 0; }
+h2, h3 { overflow-wrap: anywhere; }
+
+/* product cards */
+.product .tag { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.product h3 { font-family: var(--serif); font-size: 22px; margin: 4px 0 4px; }
+.product .desc { color: var(--ink-2); font-size: 14.5px; margin: 0 0 16px; }
+.kv { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.kv td { padding: 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.kv td:first-child { color: var(--ink-2); padding-right: 16px; }
+.kv td:last-child { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* findings */
+.findings { counter-reset: f; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.finding { position: relative; padding-left: 56px; }
+.finding::before { counter-increment: f; content: counter(f); position: absolute; left: 24px; top: 24px; font-family: var(--serif); font-weight: 700; font-size: 22px; color: var(--accent); }
+.finding p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.finding strong { color: var(--ink); }
+@media (max-width: 860px) { .findings { grid-template-columns: 1fr; } }
+
+/* explorer */
+.explorer { display: grid; grid-template-columns: 340px 1fr; gap: 0; padding: 0; overflow: hidden; }
+.explorer .controls { padding: 24px; border-right: 1px solid var(--line); background: var(--surface-2); }
+.explorer .result { padding: 28px; display: flex; flex-direction: column; justify-content: center; }
+@media (max-width: 860px) { .explorer { grid-template-columns: 1fr; } .explorer .controls { border-right: 0; border-bottom: 1px solid var(--line); } }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); margin-bottom: 20px; }
+.seg button { border: 0; background: transparent; padding: 8px 14px; font: 600 13.5px var(--sans); color: var(--ink-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--navy); color: var(--bg); }
+.field { margin-bottom: 18px; }
+.field label { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
+.field label output { color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.big { font-family: var(--serif); font-size: clamp(40px, 6vw, 64px); font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.big-l { color: var(--ink-2); margin-top: 8px; }
+.mini { display: flex; gap: 28px; margin-top: 22px; flex-wrap: wrap; }
+.mini div { font-size: 13.5px; color: var(--ink-3); }
+.mini b { display: block; font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 90px; margin-top: 26px; }
+.bars div { flex: 1; background: var(--accent-soft); border-radius: 4px 4px 0 0; position: relative; min-height: 2px; transition: height .2s; }
+.bars div.on { background: var(--accent); }
+.bars-x { display: flex; gap: 6px; font-size: 11px; color: var(--ink-3); margin-top: 6px; }
+.bars-x span { flex: 1; text-align: center; }
+.note { font-size: 12.5px; color: var(--ink-3); margin-top: 18px; }
+
+/* charts */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); padding: 8px 14px; border-radius: 999px; font: 600 13.5px var(--sans); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+figure { margin: 0; }
+figure .img { background: #fff; border-radius: 10px; padding: 8px; border: 1px solid var(--line); }
+figcaption { font-size: 14px; color: var(--ink-2); margin-top: 12px; }
+figcaption b { color: var(--ink); }
+.panel[hidden] { display: none; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+table.data th { text-align: right; font-weight: 600; color: var(--ink-2); padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; font-size: 13px; }
+table.data td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+.match { color: var(--good); font-weight: 600; }
+
+/* methodology */
+.method code, .formula { font-family: var(--mono); font-size: 13px; }
+.formula { display: block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 12px 0 0; color: var(--ink); overflow-x: auto; white-space: pre; line-height: 1.55; }
+.method .card p { color: var(--ink-2); font-size: 14.5px; margin: 0; }
+
+/* skills */
+.skills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.skills ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
+.skills li { margin: 4px 0; }
+@media (max-width: 860px) { .skills { grid-template-columns: 1fr; } }
+
+/* footer */
+footer { margin-top: 80px; border-top: 1px solid var(--line); padding: 40px 0 56px; }
+.about { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
+.about h2 { margin-bottom: 6px; }
+.about p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+.contact { display: flex; gap: 10px; flex-wrap: wrap; }
+.fine { font-size: 12.5px; color: var(--ink-3); margin-top: 32px; max-width: 90ch; }
+@media (max-width: 760px) { .about { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">Robbie Richter <span>/ Actuarial model</span></a>
+    <div class="navlinks">
+      <a href="#results">Results</a>
+      <a href="#explorer">Rate explorer</a>
+      <a href="#findings">Findings</a>
+      <a href="#charts">Charts</a>
+      <a href="#method">Methodology</a>
+      <a href="#about">About</a>
+    </div>
+    <button class="theme-btn" id="theme" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Actuarial modeling project · Python</p>
+    <h1>Life &amp; Annuity Pricing and Reserving Model</h1>
+    <p class="lede">A working pricing and valuation model for two US individual products, built on official SOA mortality tables:
+      a <strong>20-year level term</strong> policy and a <strong>single-premium deferred income annuity</strong>. Both are priced to a 10% hurdle IRR,
+      projected through statutory profit, tax and capital, and reserved with formula methods (CRVM, CARVM) and a stochastic reserve
+      (CTE70) over 1,000 interest-rate scenarios.</p>
+    <div class="byline"><div class="avatar" aria-hidden="true">RR</div><div>Built by <strong>Robbie Richter</strong> · validated against <em>Actuarial Mathematics for Life Contingent Risks</em> (ALTAM)</div></div>
+    <div class="cta">
+      <a class="btn primary" href="@@repo">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View the code</a>
+      <a class="btn" href="@@repo/blob/HEAD/notebooks/walkthrough.ipynb">Notebook walkthrough</a>
+      <a class="btn" href="assets/life_annuity_model.xlsx" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
+        Excel workbook</a>
+      <a class="btn" href="@@repo/blob/HEAD/docs/methodology.md">Full methodology</a>
+    </div>
+    <div class="chips">
+      <span class="chip">SOA 2017 CSO select &amp; ultimate</span>
+      <span class="chip">2012 IAM + Scale G2 (2012 IAR)</span>
+      <span class="chip">NLP · CRVM · CARVM</span>
+      <span class="chip">Stochastic reserve (CTE70 of GPVAD)</span>
+      <span class="chip">Monte Carlo mortality risk</span>
+      <span class="chip ok">✓ @@n_tests tests · CI passing</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><div class="v">@@term_premium</div><div class="l">Annual premium, 20-year term</div><div class="s">Male 35 nonsmoker, $500k, at a 10% IRR</div></div>
+    <div class="stat"><div class="v">@@dia_payout</div><div class="l">Payout rate, deferred annuity</div><div class="s">Male 55, income from 65, at a 10% IRR</div></div>
+    <div class="stat"><div class="v">@@dia_sr_pct</div><div class="l">Stochastic reserve at issue</div><div class="s">vs. @@dia_carvm_pct CARVM formula reserve</div></div>
+    <div class="stat"><div class="v">4 / 4</div><div class="l">ALTAM benchmark ages matched</div><div class="s">to published precision, e.g. ä<sub>65</sub> = 13.5498</div></div>
+  </div>
+</div>
+
+<section id="results">
+  <div class="wrap">
+    <h2>Two products, end to end</h2>
+    <p class="sub">Each product is priced, projected, reserved and stress-tested on separate pricing, valuation and stress bases, so a shock never leaks into the statutory reserve unless it is meant to.</p>
+    <div class="grid2">
+      <div class="card product">
+        <div class="tag">Protection</div>
+        <h3>20-year level term life</h3>
+        <p class="desc">Male 35 nonsmoker, $500,000 face. Priced on 70% of the 2017 Loaded CSO; reserved on 100% 2017 CSO select at 3.5%.</p>
+        <table class="kv">
+          <tr><td>Gross annual premium</td><td>@@term_premium (@@term_per1000 per $1,000)</td></tr>
+          <tr><td>IRR on distributable earnings</td><td>@@term_irr</td></tr>
+          <tr><td>Breakeven year</td><td>Year @@term_breakeven</td></tr>
+          <tr><td>CRVM method</td><td>Full preliminary term</td></tr>
+          <tr><td>CRVM α / β per $1,000</td><td>@@term_alpha / @@term_beta</td></tr>
+          <tr><td>Peak CRVM reserve per $1,000</td><td>@@term_peak</td></tr>
+          <tr><td>IRR if mortality is 10% higher</td><td>@@term_irr_mort (@@term_irr_mort_bp)</td></tr>
+          <tr><td>10k-policy block, 99.5% VaR</td><td>@@term_var10k of PV premium</td></tr>
+        </table>
+      </div>
+      <div class="card product">
+        <div class="tag">Retirement income</div>
+        <h3>Deferred income annuity</h3>
+        <p class="desc">Male 55, $100,000 single premium, life income from 65, return of premium on death before 65. Priced and reserved on the 2012 IAR (4.75% valuation rate).</p>
+        <table class="kv">
+          <tr><td>Annual life income</td><td>@@dia_income (@@dia_payout)</td></tr>
+          <tr><td>Pricing margin for tax, capital and profit</td><td>@@dia_margin of premium</td></tr>
+          <tr><td>CARVM reserve at issue</td><td>@@dia_carvm_pct of premium</td></tr>
+          <tr><td>Stochastic reserve at issue (CTE70)</td><td>@@dia_sr_pct of premium</td></tr>
+          <tr><td>Peak CARVM reserve (age 65)</td><td>@@dia_peak</td></tr>
+          <tr><td>PV profit if earned rate falls 100bp</td><td>@@dia_rate_down of premium</td></tr>
+          <tr><td>Payout cut needed to restore 10% IRR</td><td>@@dia_reprice_bp</td></tr>
+          <tr><td>CTE98 of PV loss, 1,000 scenarios</td><td>@@dia_cte98 of premium</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="explorer">
+  <div class="wrap">
+    <h2>Rate explorer</h2>
+    <p class="sub">Every rate below was solved by the model so that distributable earnings return exactly the 10% hurdle. Move the sliders to see how price responds to age, sex and deferral.</p>
+    <div class="card explorer">
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Product">
+          <button type="button" data-prod="term" aria-pressed="true">20-year term</button>
+          <button type="button" data-prod="dia" aria-pressed="false">Deferred annuity</button>
+        </div>
+        <div id="term-controls">
+          <div class="field"><label for="t-age">Issue age <output id="t-age-o">35</output></label>
+            <input id="t-age" type="range" min="25" max="65" step="5" value="35"></div>
+          <div class="seg" role="group" aria-label="Sex">
+            <button type="button" data-sex="M" aria-pressed="true">Male</button>
+            <button type="button" data-sex="F" aria-pressed="false">Female</button>
+          </div>
+        </div>
+        <div id="dia-controls" hidden>
+          <div class="field"><label for="d-age">Issue age <output id="d-age-o">55</output></label>
+            <input id="d-age" type="range" min="45" max="70" step="5" value="55"></div>
+          <div class="field"><label for="d-def">Deferral period <output id="d-def-o">10 years</output></label>
+            <input id="d-def" type="range" min="5" max="20" step="5" value="10"></div>
+          <div class="field"><label for="d-prem">Single premium <output id="d-prem-o">$100,000</output></label>
+            <input id="d-prem" type="range" min="25000" max="500000" step="25000" value="100000"></div>
+        </div>
+      </div>
+      <div class="result" aria-live="polite">
+        <div class="big" id="r-big">—</div>
+        <div class="big-l" id="r-label"></div>
+        <div class="mini" id="r-mini"></div>
+        <div class="bars" id="r-bars" aria-hidden="true"></div>
+        <div class="bars-x" id="r-bars-x" aria-hidden="true"></div>
+        <p class="note" id="r-note"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="findings">
+  <div class="wrap">
+    <h2>What the model shows</h2>
+    <p class="sub">The results most worth discussing, each backed by an output in the repository.</p>
+    <div class="findings">
+      <div class="card finding"><h3>Term life is a mortality and expense business</h3><p>Mortality 10% higher costs <strong>@@term_irr_mort_bp_abs of IRR</strong>; 10% more expense costs @@term_exp_bp_abs. The valuation rate barely matters (±3bp) because term reserves are small.</p></div>
+      <div class="card finding"><h3>The annuity is a spread business</h3><p>A 100bp fall in the earned rate wipes out <strong>@@dia_rate_down_abs of premium</strong> in PV of profit, roughly ten times any mortality shock. Restoring the hurdle means cutting the payout rate by @@dia_reprice_bp_abs.</p></div>
+      <div class="card finding"><h3>Longevity risk lives in the improvement scale</h3><p>Dropping Scale G2 adds <strong>@@dia_noimp of margin</strong>, while 150% of G2 costs @@dia_g2x15. A flat 10% cut in base mortality costs only @@dia_mort90.</p></div>
+      <div class="card finding"><h3>Formula reserves are conservative for term, not for the annuity</h3><p>The term stochastic reserve sits <strong>far below CRVM</strong>, the redundancy that principles-based reserving released. For the annuity, reinvestment risk lifts it <strong>above CARVM</strong> (@@dia_sr_pct vs. @@dia_carvm_pct).</p></div>
+      <div class="card finding"><h3>Parameter risk does not diversify</h3><p>Process risk falls as 1/√N: the 99.5% VaR goes from @@var1k_proc to <strong>@@var100k_proc</strong> of PV premium between 1,000 and 100,000 policies. A 10% uncertainty in the mortality level keeps it at <strong>@@var100k_param</strong>.</p></div>
+      <div class="card finding"><h3>IRR is not always defined</h3><p>Under some annuity shocks later earnings turn negative and the cash flows change sign several times, so the IRR is not unique. The model reports an IRR only when it is unique and judges the annuity on PV of profit.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="charts">
+  <div class="wrap">
+    <h2>Charts</h2>
+    <p class="sub">All charts are generated by <code>python run_model.py</code>.</p>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="pricing">Pricing</button>
+      <button role="tab" aria-selected="false" data-tab="reserving">Reserving</button>
+      <button role="tab" aria-selected="false" data-tab="risk">Risk &amp; sensitivity</button>
+      <button role="tab" aria-selected="false" data-tab="stochastic">Stochastic</button>
+    </div>
+    <div class="panel grid2" data-panel="pricing">
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_premium_buildup.png" alt="Term premium build-up"></div><figcaption><b>Where the term premium goes.</b> Discounted at the hurdle rate the components add to exactly 100%; holding reserves and capital is a real cost because they earn 5% while capital requires 10%.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_premium_buildup.png" alt="Annuity premium build-up"></div><figcaption><b>Where the annuity premium goes.</b> At the earned rate, benefits take 89% of the premium; the remaining margin must pay for tax, capital and profit.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_rate_card.png" alt="Term rate card"></div><figcaption><b>Term rate card.</b> Premium per $1,000 by issue age and sex, each solved to a 10% IRR.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_rate_card.png" alt="Annuity rate card"></div><figcaption><b>Annuity rate card.</b> Payout rate by issue age and deferral: longer deferral means more interest credit and more mortality credit.</figcaption></figure>
+    </div>
+    <div class="panel grid2" data-panel="reserving" hidden>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_reserves.png" alt="Term reserves"></div><figcaption><b>NLP vs. CRVM.</b> For level term the 20-pay-life cap does not bind, so CRVM is full preliminary term and the first-year reserve is zero.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_reserves.png" alt="Annuity reserve run-off"></div><figcaption><b>CARVM run-off.</b> The reserve builds through deferral and peaks at 65, when income begins.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_reserve_comparison.png" alt="Term formula vs stochastic reserve"></div><figcaption><b>Term: formula vs. modelled reserve.</b> Even with prudent margins the stochastic reserve is a fraction of CRVM.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_reserve_comparison.png" alt="Annuity formula vs stochastic reserve"></div><figcaption><b>Annuity: formula vs. modelled reserve.</b> Reinvestment risk lifts the CTE70 reserve above CARVM.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_reserve_sensitivity.png" alt="Annuity reserve vs valuation rate"></div><figcaption><b>Valuation rate drives strain.</b> At 4.25% the issue reserve exceeds the premium and the company must fund the difference from surplus.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_distributable_earnings.png" alt="Term distributable earnings"></div><figcaption><b>Term earnings pattern.</b> First-year commission creates a strain that takes until year @@term_breakeven to repay.</figcaption></figure>
+    </div>
+    <div class="panel grid2" data-panel="risk" hidden>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_tornado.png" alt="Term tornado chart"></div><figcaption><b>Term sensitivities.</b> Mortality and expenses dominate; valuation interest barely registers.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_tornado.png" alt="Annuity tornado chart"></div><figcaption><b>Annuity sensitivities.</b> Interest dwarfs everything, then the valuation rate and the improvement scale.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/margin_vs_earned_rate.png" alt="Margin vs earned rate"></div><figcaption><b>Profit vs. earned rate.</b> The annuity's margin is several times as rate-sensitive as term's.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/term_mortality_risk.png" alt="Mortality risk by block size"></div><figcaption><b>Process vs. parameter risk.</b> Simulated term blocks: random deaths diversify with size, uncertainty in the mortality level does not.</figcaption></figure>
+    </div>
+    <div class="panel grid2" data-panel="stochastic" hidden>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/interest_scenarios.png" alt="Interest scenarios"></div><figcaption><b>Interest scenarios.</b> Vasicek short rate driving a 10-year new-money yield; 10% of the portfolio reinvests each year.</figcaption></figure>
+      <figure class="card"><div class="img"><img loading="lazy" src="assets/dia_profit_distribution.png" alt="Annuity profit distribution"></div><figcaption><b>Annuity profit distribution.</b> PV of distributable earnings across 1,000 scenarios with the payout rate held, with CTE70 and 99.5% VaR marked.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="validation">
+  <div class="wrap">
+    <h2>Validated before anything is priced</h2>
+    <p class="sub">The actuarial engine is checked against ALTAM's Standard Ultimate Survival Model (Makeham, i = 5%), and @@n_tests automated tests tie every reserve to its recursion.</p>
+    <div class="grid2">
+      <div class="card tbl-wrap">
+        <h3>ALTAM Standard Ultimate Survival Model</h3>
+        <table class="data">
+          <thead><tr><th>Age</th><th>ä<sub>x</sub> model</th><th>ä<sub>x</sub> ALTAM</th><th>A<sub>x</sub> model</th><th>A<sub>x</sub> ALTAM</th></tr></thead>
+          <tbody>@@altam_rows</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Internal consistency checks</h3>
+        <table class="kv">
+          <tr><td>NLP and CRVM reserve recursions, every year</td><td class="match">exact</td></tr>
+          <tr><td>DIA CARVM recursion, deferral and payout</td><td class="match">exact</td></tr>
+          <tr><td>Stochastic engine on the valuation basis = CARVM</td><td class="match">exact</td></tr>
+          <tr><td>Level-path scenarios = deterministic profit</td><td class="match">exact</td></tr>
+          <tr><td>Premium build-ups sum to 100%</td><td class="match">exact</td></tr>
+          <tr><td>Vasicek simulation vs. analytic moments</td><td class="match">✓</td></tr>
+          <tr><td>Mortality simulation mean; CV ∝ 1/√N</td><td class="match">✓</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="method" class="method">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">Annual, curtate framework in ALTAM notation. The <a href="@@repo/blob/HEAD/docs/methodology.md">methodology document</a> has every formula.</p>
+    <div class="grid2">
+      <div class="card"><h3>Mortality</h3><p>SOA XTbML files are parsed directly. The 2017 CSO uses its 25-year select period; the 2012 IAR is projected generationally with Scale G2.</p>
+        <span class="formula">q_x(y) = q_x(2012) · (1 − G2_x)^(y − 2012)</span></div>
+      <div class="card"><h3>CRVM reserve</h3><p>First-year net premium α = c<sub>x</sub>, renewal β, with the expense allowance capped at the 19-pay-life premium per the Standard Valuation Law.</p>
+        <span class="formula">tV = A¹(x+t : n−t) − β · ä(x+t : n−t)</span></div>
+      <div class="card"><h3>Profit test</h3><p>Statutory gain after tax, less the increase in required capital, gives distributable earnings. The price solves PV at the hurdle rate equal to zero.</p>
+        <span class="formula">DE_t = (1−τ)·Gain_t + (1−τ)·i·RC_(t−1) − ΔRC_t</span></div>
+      <div class="card"><h3>Stochastic reserve</h3><p>For each scenario, the greatest present value of accumulated deficiencies: the starting assets that keep the balance non-negative. The reserve is its CTE70.</p>
+        <span class="formula">SR = CTE70( max_k Σ_(j≤k) PV_s(net outflow_j) )</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="skills">
+  <div class="wrap">
+    <h2>What this demonstrates</h2>
+    <p class="sub">The work an entry-level pricing or valuation actuary does, built from first principles.</p>
+    <div class="skills">
+      <div class="card"><h3>Pricing</h3><ul><li>Gross premium and payout rate solved to a hurdle IRR</li><li>Distributable earnings with tax and required capital</li><li>Rate cards and premium build-ups</li><li>Repricing under stress</li></ul></div>
+      <div class="card"><h3>Valuation</h3><ul><li>NLP, CRVM (20-pay-life cap) and deficiency reserves</li><li>CARVM for a deferred income annuity</li><li>VM-20 / VM-22 stochastic reserve mechanics</li><li>Valuation vs. pricing bases kept separate</li></ul></div>
+      <div class="card"><h3>Risk &amp; engineering</h3><ul><li>Interest scenario generator, CTE and VaR</li><li>Monte Carlo mortality: process vs. parameter risk</li><li>Python, NumPy, pandas; tested, linted, CI</li><li>Formatted Excel and reproducible notebook</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<footer id="about">
+  <div class="wrap">
+    <div class="about">
+      <div>
+        <h2>Robbie Richter</h2>
+        <p>I built this model to show how I approach actuarial work: start from validated fundamentals, keep pricing and valuation bases separate, and test what drives the result. I'd welcome a conversation about pricing, valuation or modeling roles.</p>
+      </div>
+      <div class="contact">
+        <a class="btn primary" href="mailto:@@email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+          @@email</a>
+        <a class="btn" href="@@github">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub</a>
+      </div>
+    </div>
+    <p class="fine">Mortality tables are from the Society of Actuaries Mortality and Morbidity Table Repository (mort.soa.org), reproduced unmodified. Expense, lapse, capital and interest assumptions are illustrative, not company experience. Formula reserves follow the Standard Valuation Law; the stochastic reserve implements VM-20/VM-22 mechanics in simplified form and is not a regulatory calculation. Built @@built.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // theme toggle
+  var root = document.documentElement, KEY = "lam-theme";
+  try { var saved = localStorage.getItem(KEY); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+  document.getElementById("theme").addEventListener("click", function () {
+    var dark = root.getAttribute("data-theme") === "dark" ||
+      (!root.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+  });
+
+  // chart tabs
+  var tabs = document.querySelectorAll(".tabs button");
+  tabs.forEach(function (b) {
+    b.addEventListener("click", function () {
+      tabs.forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+      document.querySelectorAll(".panel").forEach(function (p) { p.hidden = p.dataset.panel !== b.dataset.tab; });
+    });
+  });
+
+  // rate explorer: data written by site/build.py from the model's rate-card outputs
+  var TERM = @@term_json;   // [{age, M, F}] annual premium for $500k
+  var DIA = @@dia_json;     // {age: {deferral: payout rate}}
+  var state = { prod: "term", sex: "M" };
+  var $ = function (id) { return document.getElementById(id); };
+  var usd = function (v, d) { return "$" + v.toLocaleString("en-US", { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var pct = function (v) { return (v * 100).toFixed(2) + "%"; };
+
+  function bars(values, activeIdx, labels) {
+    var max = Math.max.apply(null, values.filter(function (v) { return v != null; }));
+    $("r-bars").innerHTML = values.map(function (v, i) {
+      return '<div class="' + (i === activeIdx ? "on" : "") + '" style="height:' + (v == null ? 0 : Math.max(3, v / max * 100)) + '%"></div>';
+    }).join("");
+    $("r-bars-x").innerHTML = labels.map(function (l) { return "<span>" + l + "</span>"; }).join("");
+  }
+
+  function render() {
+    $("term-controls").hidden = state.prod !== "term";
+    $("dia-controls").hidden = state.prod !== "dia";
+    if (state.prod === "term") {
+      var age = +$("t-age").value; $("t-age-o").textContent = age;
+      var row = TERM.filter(function (r) { return r.age === age; })[0];
+      var prem = row[state.sex];
+      $("r-big").textContent = usd(prem, 2);
+      $("r-label").textContent = "annual premium · $500,000 · 20-year level term · " + (state.sex === "M" ? "male" : "female") + " nonsmoker, age " + age;
+      $("r-mini").innerHTML = "<div><b>" + usd(prem / 500, 3) + "</b>per $1,000 of face</div><div><b>" + usd(prem / 12, 2) + "</b>a month equivalent</div><div><b>" + usd(prem * 20) + "</b>over 20 years (undiscounted)</div>";
+      bars(TERM.map(function (r) { return r[state.sex]; }), TERM.map(function (r) { return r.age; }).indexOf(age), TERM.map(function (r) { return r.age; }));
+      $("r-note").textContent = "Bars: premium by issue age. Pricing: 70% of 2017 CSO nonsmoker select & ultimate, 5.0% earned rate, 10% hurdle IRR.";
+    } else {
+      var a = +$("d-age").value, d = +$("d-def").value, p = +$("d-prem").value;
+      $("d-age-o").textContent = a; $("d-def-o").textContent = d + " years"; $("d-prem-o").textContent = usd(p);
+      var rate = DIA[a] && DIA[a][d];
+      if (rate == null) {
+        $("r-big").textContent = "n/a";
+        $("r-label").textContent = "Income would start after 85: outside the rate card.";
+        $("r-mini").innerHTML = "";
+      } else {
+        $("r-big").textContent = usd(rate * p);
+        $("r-label").textContent = "annual life income from age " + (a + d) + " · " + usd(p) + " single premium · male, age " + a;
+        $("r-mini").innerHTML = "<div><b>" + pct(rate) + "</b>payout rate</div><div><b>" + usd(rate * p / 12) + "</b>a month</div><div><b>" + (1 / rate).toFixed(1) + " yrs</b>of income to recover premium</div>";
+      }
+      var ds = [5, 10, 15, 20];
+      bars(ds.map(function (k) { return DIA[a][k]; }), ds.indexOf(d), ds.map(function (k) { return k + "y"; }));
+      $("r-note").textContent = "Bars: payout rate by deferral period. Pricing: 2012 IAM × Scale G2 generational, 5.25% earned rate, return of premium before income starts, 10% hurdle IRR.";
+    }
+  }
+
+  document.querySelectorAll("[data-prod]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.prod = b.dataset.prod;
+      document.querySelectorAll("[data-prod]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      render();
+    });
+  });
+  document.querySelectorAll("[data-sex]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.sex = b.dataset.sex;
+      document.querySelectorAll("[data-sex]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      render();
+    });
+  });
+  ["t-age", "d-age", "d-def", "d-prem"].forEach(function (id) { $(id).addEventListener("input", render); });
+  render();
+})();
+</script>
+</body>
+</html>

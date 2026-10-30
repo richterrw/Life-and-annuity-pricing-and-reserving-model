@@ -25,3 +25,5 @@ jobs:
         run: pytest -q
       - name: Run model (quick)
         run: python run_model.py --quick --out /tmp/outputs
+      - name: Build website
+        run: python site/build.py

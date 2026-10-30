@@ -5,6 +5,8 @@
 ![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
+**By Robbie Richter** · [Project website](https://richterrw.github.io/Life-and-annuity-pricing-and-reserving-model/) · [robbierichter15@gmail.com](mailto:robbierichter15@gmail.com) · [GitHub](https://github.com/richterrw)
+
 This repository is a working pricing and valuation model for two US individual products, built on official **SOA mortality tables**:
 
 - **20-year level term life**, priced on the 2017 CSO select & ultimate table.
@@ -26,6 +28,7 @@ pytest -q                    # 25 tests
 ```
 
 **Start here:**
+- [Project website](https://richterrw.github.io/Life-and-annuity-pricing-and-reserving-model/): results, interactive rate explorer and charts
 - [`notebooks/walkthrough.ipynb`](notebooks/walkthrough.ipynb): guided tour with live results
 - [`outputs/life_annuity_model.xlsx`](outputs/life_annuity_model.xlsx): formatted workbook, executive summary first
 - [`docs/methodology.md`](docs/methodology.md): every formula
@@ -85,7 +88,7 @@ pytest -q                    # 25 tests
    - For the annuity, reinvestment risk pushes the CTE70 reserve above CARVM. Later in the payout period, prudent mortality and expenses also lift the deterministic reserve above it.
 6. **Parameter risk dominates for large blocks.**
    - Process risk from random deaths diversifies as 1/√N: the 99.5% VaR falls from 29% of PV premium at 1,000 policies to 2.6% at 100,000.
-   - A 10% uncertainty in the mortality level does not diversify, and keeps the 100,000-policy VaR at 7.9%. This is why experience studies and credibility matter more than scale.
+   - A 10% uncertainty in the mortality level does not diversify, and keeps the 100,000-policy VaR at 7.8%. This is why experience studies and credibility matter more than scale.
 7. **IRR is not always defined for annuities.**
    - With little issue strain, a shock can turn later earnings negative and give multiple IRRs. The model reports an IRR only when it is unique, and judges the annuity on PV of profit.
 
@@ -123,6 +126,7 @@ data/soa/              SOA tables exactly as published (XTbML)
 tests/                 25 tests
 notebooks/             executed walkthrough and its build script
 docs/methodology.md    formulas and design notes
+site/                  project website (built from outputs/ by site/build.py)
 ```
 
 All assumptions are fields on `TermAssumptions` and `DIAAssumptions`. For example, `TermAssumptions().with_(issue_age=45, mortality_pct=0.8)` gives a new basis. Pricing, valuation and stress bases are separate, so a shock never leaks into the statutory reserve unless it is meant to.

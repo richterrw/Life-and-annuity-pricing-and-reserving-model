@@ -113,6 +113,7 @@ def main(argv=None):
         "term_reserve_comparison": term_res_cmp,
         "dia_reserve_comparison": dia_res_cmp,
         "term_mortality_risk": mort_risk,
+        "dia_stochastic_profit": stoch_dist,
     }
     for name, df in csvs.items():
         df.to_csv(out / f"{name}.csv", index=False)
